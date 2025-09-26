@@ -1,14 +1,13 @@
 {
-  "name": "stremio-korean-catalog",
+  "name": "stremio-korean-cinemeta",
   "version": "1.0.0",
-  "description": "Korean Movies and Series Catalog for Stremio",
+  "description": "Korean Movies and TV Series Catalog (Cinemeta Style)",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "stremio-addon-sdk": "^1.6.10",
-    "node-fetch": "^2.6.7"
+    "stremio-addon-sdk": "^1.6.10"
   },
   "engines": {
     "node": ">=14.0.0"
