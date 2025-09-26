@@ -30,12 +30,13 @@ const builder = new addonBuilder({
             ]
         }
     ],
-    resources: ['catalog'],
+    // ADD 'genre' to resources array
+    resources: ['catalog', 'genre'],
     types: ['movie', 'series'],
     idPrefixes: ['tt', 'tmdb']
 });
 
-// TMDB Genre Mappings - CORRECT FORMAT FOR STREMIO
+// TMDB Genre Mappings
 const GENRE_MAPPINGS = {
     movie: [
         { id: 'action', name: 'Action' },
@@ -106,18 +107,17 @@ async function fetchAllKoreanContent(type) {
     let totalPages = 1;
 
     try {
-        // Get total pages first - IMPORTANT: include include_adult=false
+        // Get total pages first - include_adult=false
         const firstPageUrl = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}&language=en-US&page=1&with_original_language=ko&region=KR&sort_by=popularity.desc&include_adult=false`;
         const firstResponse = await fetch(firstPageUrl);
         const firstData = await firstResponse.json();
         
-        totalPages = Math.min(firstData.total_pages, 20); // Limit to 20 pages
+        totalPages = Math.min(firstData.total_pages, 20);
         
         console.log(`Found ${totalPages} pages of Korean ${type}`);
 
         // Fetch all pages
         for (page = 1; page <= totalPages; page++) {
-            // CRITICAL: include_adult=false to exclude porn content
             const url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}&language=en-US&page=${page}&with_original_language=ko&region=KR&sort_by=popularity.desc&include_adult=false`;
             
             const response = await fetch(url);
@@ -125,12 +125,10 @@ async function fetchAllKoreanContent(type) {
             
             if (!data.results || data.results.length === 0) break;
 
-            // Filter out any adult content that might slip through
             const koreanContent = data.results
                 .filter(item => item.original_language === 'ko')
                 .map(item => {
                     const genreNames = item.genre_ids ? item.genre_ids.map(genreId => {
-                        // Map TMDB genre IDs to our genre names
                         for (const [key, value] of Object.entries(TMDB_GENRE_IDS[type])) {
                             if (value === genreId) return GENRE_MAPPINGS[type].find(g => g.id === key)?.name;
                         }
@@ -168,7 +166,6 @@ async function fetchAllKoreanContent(type) {
 // Search Korean content (EXCLUDING ADULT)
 async function searchKoreanContent(type, query) {
     try {
-        // IMPORTANT: include_adult=false
         const url = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=1&include_adult=false`;
         const response = await fetch(url);
         const data = await response.json();
@@ -198,7 +195,6 @@ async function fetchKoreanContentByGenre(type, genreId) {
     if (!tmdbGenreId) return [];
 
     try {
-        // IMPORTANT: include_adult=false
         const url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}&language=en-US&with_original_language=ko&with_genres=${tmdbGenreId}&region=KR&sort_by=popularity.desc&include_adult=false`;
         const response = await fetch(url);
         const data = await response.json();
@@ -220,7 +216,7 @@ async function fetchKoreanContentByGenre(type, genreId) {
     }
 }
 
-// PROVIDE GENRES FOR DISCOVERY PAGE - THIS IS CRITICAL
+// PROVIDE GENRES FOR DISCOVERY PAGE - FIXED
 builder.defineResourceHandler((args) => {
     if (args.type === 'genre' && args.id) {
         if (args.id === 'korean-movies') {
@@ -233,7 +229,7 @@ builder.defineResourceHandler((args) => {
             });
         }
     }
-    return Promise.resolve(null);
+    return null;
 });
 
 // Main catalog handler
@@ -295,11 +291,10 @@ const port = process.env.PORT || 7000;
 serveHTTP(builder.getInterface(), { port: port })
     .then(() => {
         console.log('🚀 Korean Catalog Addon successfully started!');
+        console.log('✅ Fixed: Added genre resource to manifest');
         console.log('✅ Fixed: Both Movies AND Series catalogs');
-        console.log('✅ Fixed: No adult/porn content (include_adult=false)');
+        console.log('✅ Fixed: No adult/porn content');
         console.log('✅ Fixed: Genre filters in Discovery page');
-        console.log('🎭 Movies Genres: Action, Drama, Comedy, Thriller, Horror, Romance, Sci-Fi, Mystery, Fantasy, Crime');
-        console.log('🎭 Series Genres: Drama, Comedy, Action & Adventure, Sci-Fi & Fantasy, Mystery, Romance, Crime, Family, Documentary');
         console.log('🔗 Manifest URL: http://localhost:' + port + '/manifest.json');
     })
     .catch((error) => {
