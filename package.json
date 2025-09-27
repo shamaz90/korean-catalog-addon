@@ -1,13 +1,13 @@
 {
     "name": "korean-cinemeta-addon",
     "version": "1.0.0",
-    "description": "Stremio addon for Korean Movies and Series using TMDB and mdblist",
+    "description": "Stremio catalog addon for Korean Movies and Series",
     "main": "addon.js",
     "scripts": {
         "start": "node addon.js"
     },
     "dependencies": {
-        "stremio-addon-sdk": "^1.11.0",
-        "axios": "^1.4.0"
+        "stremio-addon-sdk": "^1.0.0",
+        "axios": "^1.6.0"
     }
 }
