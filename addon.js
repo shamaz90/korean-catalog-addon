@@ -1,5 +1,7 @@
-const { addonBuilder } = require('stremio-addon-sdk');
+
+const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const axios = require('axios');
+const http = require('http');
 
 const TMDB_API_KEY = 'a6635913d6574e1d0acf79cacf6db07d';
 const MDBLIST_API_KEY = 'cw16juzfhfoma0p02oqi4jci0';
@@ -59,4 +61,7 @@ builder.defineCatalogHandler(async ({ type, id, extra }) => {
     return { metas: [] };
 });
 
-module.exports = builder.getInterface();
+const addonInterface = builder.getInterface();
+
+// Start HTTP server to keep the addon alive on Render
+http.createServer(getRouter(addonInterface)).listen(process.env.PORT || 7000);
