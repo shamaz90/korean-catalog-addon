@@ -1,11 +1,8 @@
-
 const { addonBuilder } = require('stremio-addon-sdk');
 const axios = require('axios');
 
 const TMDB_API_KEY = 'a6635913d6574e1d0acf79cacf6db07d';
 const MDBLIST_API_KEY = 'cw16juzfhfoma0p02oqi4jci0';
-
-const builder = new addonBuilder(manifest);
 
 const manifest = {
     id: "org.korean.cinemeta",
@@ -36,6 +33,8 @@ const manifest = {
     resources: ["catalog"],
     idPrefixes: ["tmdb"]
 };
+
+const builder = new addonBuilder(manifest);
 
 async function fetchTMDBCatalog(type, search) {
     const url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}&with_original_language=ko&sort_by=popularity.desc`;
