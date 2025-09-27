@@ -1,16 +1,13 @@
 {
-  "name": "stremio-korean-catalog",
-  "version": "1.0.0",
-  "description": "Korean Movies and TV Series Catalog - Safe Content",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "stremio-addon-sdk": "^1.6.10",
-    "node-fetch": "^2.6.7"
-  },
-  "engines": {
-    "node": ">=14.0.0"
-  }
+    "name": "korean-cinemeta-addon",
+    "version": "1.0.0",
+    "description": "Stremio addon for Korean Movies and Series using TMDB and mdblist",
+    "main": "addon.js",
+    "scripts": {
+        "start": "node addon.js"
+    },
+    "dependencies": {
+        "stremio-addon-sdk": "^1.11.0",
+        "axios": "^1.4.0"
+    }
 }

@@ -1,0 +1,48 @@
+{
+    "id": "org.korean.cinemeta",
+    "version": "1.0.0",
+    "name": "Korean Cinemeta",
+    "description": "Catalog addon for Korean Movies and Series using TMDB and mdblist",
+    "types": [
+        "movie",
+        "series"
+    ],
+    "catalogs": [
+        {
+            "type": "movie",
+            "id": "korean-movies",
+            "name": "Korean Movies",
+            "extra": [
+                {
+                    "name": "search",
+                    "isRequired": false
+                },
+                {
+                    "name": "genre",
+                    "isRequired": false
+                }
+            ]
+        },
+        {
+            "type": "series",
+            "id": "korean-series",
+            "name": "Korean Series",
+            "extra": [
+                {
+                    "name": "search",
+                    "isRequired": false
+                },
+                {
+                    "name": "genre",
+                    "isRequired": false
+                }
+            ]
+        }
+    ],
+    "resources": [
+        "catalog"
+    ],
+    "idPrefixes": [
+        "tmdb"
+    ]
+}
