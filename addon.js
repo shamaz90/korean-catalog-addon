@@ -1,7 +1,7 @@
 
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const axios = require('axios');
-const http = require('http');
+const express = require('express');
 
 const TMDB_API_KEY = 'a6635913d6574e1d0acf79cacf6db07d';
 const MDBLIST_API_KEY = 'cw16juzfhfoma0p02oqi4jci0';
@@ -39,7 +39,7 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 
 async function fetchTMDBCatalog(type, search) {
-    const url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}&with_original_language=ko&sort_by=popularity.desc`;
+    const url = \`https://api.themoviedb.org/3/discover/\${type}?api_key=\${TMDB_API_KEY}&with_original_language=ko&sort_by=popularity.desc\`;
     const response = await axios.get(url);
     return response.data.results.map(item => ({
         id: "tmdb_" + item.id,
@@ -61,7 +61,6 @@ builder.defineCatalogHandler(async ({ type, id, extra }) => {
     return { metas: [] };
 });
 
-const addonInterface = builder.getInterface();
-
-// Start HTTP server to keep the addon alive on Render
-http.createServer(getRouter(addonInterface)).listen(process.env.PORT || 7000);
+const app = express();
+app.use('/', getRouter(builder.getInterface()));
+app.listen(process.env.PORT || 7000);
