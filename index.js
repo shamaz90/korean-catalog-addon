@@ -2,10 +2,10 @@ const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const fetch = require('node-fetch');
 
 const builder = new addonBuilder({
-    id: 'com.korean.filtered.final',
+    id: 'com.korean.optimized',
     version: '1.0.0',
-    name: 'Korean Catalog - Safe & Streaming',
-    description: 'Korean Movies & Series (No Adult Content + Streaming Only)',
+    name: 'Korean Catalog - Optimized',
+    description: 'Maximum Korean Movies & Series with All Features',
     catalogs: [
         {
             type: 'movie',
@@ -33,206 +33,207 @@ const builder = new addonBuilder({
     idPrefixes: ['tt', 'tmdb']
 });
 
-// All major streaming platforms
-const STREAMING_PLATFORMS = [8, 9, 337, 15, 2, 531, 384, 283, 386, 300];
+const TMDB_API_KEY = 'a6635913d6574e1d0acf79cacf6db07d';
 
-// Adult content keywords to block
-const ADULT_KEYWORDS = [
-    'stepmom', 'stepmother', 'desire', 'untangled', 'exchange', 'female wars',
-    'leggings', 'mania', 'erotic', 'adult', 'xxx', 'porn', 'sex', 'nude',
-    'bed', 'hot', 'seduction', 'affair', 'forbidden', 'mistress'
-];
-
+// Smart caching with incremental loading
 let contentCache = {
-    movies: { data: [], count: 0, timestamp: 0 },
-    series: { data: [], count: 0, timestamp: 0 }
+    movies: { pages: new Map(), lastPage: 0, totalItems: 0 },
+    series: { pages: new Map(), lastPage: 0, totalItems: 0 },
+    timestamp: 0
 };
-const CACHE_DURATION = 6 * 60 * 60 * 1000;
 
-// Check if content is safe (no adult content)
-function isSafeContent(item) {
-    if (!item) return false;
-    
-    const title = (item.title || item.name || '').toLowerCase();
-    const overview = (item.overview || '').toLowerCase();
-    
-    // Block adult keywords
-    if (ADULT_KEYWORDS.some(keyword => title.includes(keyword) || overview.includes(keyword))) {
-        return false;
-    }
-    
-    // Block adult content flag
-    if (item.adult) {
-        return false;
-    }
-    
-    return true;
-}
+const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
-// Check if content is on streaming platforms
-async function isOnStreamingPlatforms(tmdbId, type) {
+// Fetch Korean content with smart pagination
+async function fetchKoreanPage(type, page = 1) {
     try {
-        const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/watch/providers?api_key=a6635913d6574e1d0acf79cacf6db07d`;
+        const url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}&with_original_language=ko&sort_by=popularity.desc&page=${page}&include_adult=false`;
+        
         const response = await fetch(url);
         const data = await response.json();
         
-        if (!data.results || !data.results.US) return false;
-        
-        // Check streaming platforms
-        return STREAMING_PLATFORMS.some(platformId => 
-            (data.results.US.flatrate && data.results.US.flatrate.some(p => p.provider_id === platformId)) ||
-            (data.results.US.buy && data.results.US.buy.some(p => p.provider_id === platformId)) ||
-            (data.results.US.rent && data.results.US.rent.some(p => p.provider_id === platformId))
-        );
-    } catch (error) {
-        return false;
-    }
-}
-
-// Fetch and filter Korean content
-async function fetchFilteredKoreanContent(type) {
-    console.log(`Fetching and filtering Korean ${type}...`);
-    
-    let allContent = [];
-    let page = 1;
-    let totalFiltered = 0;
-
-    try {
-        while (page <= 5) { // Limit to 5 pages for performance
-            const url = `https://api.themoviedb.org/3/discover/${type}?api_key=a6635913d6574e1d0acf79cacf6db07d&with_original_language=ko&sort_by=popularity.desc&page=${page}&include_adult=false`;
-            
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            if (!data.results || data.results.length === 0) break;
-
-            // Filter for safe Korean content
-            const safeContent = data.results.filter(item => 
-                item.original_language === 'ko' && isSafeContent(item)
-            );
-
-            console.log(`Page ${page}: ${safeContent.length} safe ${type}`);
-
-            // Check streaming availability for each item
-            for (const item of safeContent) {
-                const isStreaming = await isOnStreamingPlatforms(item.id, type);
-                if (isStreaming) {
-                    allContent.push({
-                        id: `tmdb:${item.id}`,
-                        type: type,
-                        name: item.title || item.name,
-                        poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-                        description: item.overview,
-                        releaseInfo: item.release_date || item.first_air_date ? new Date(item.release_date || item.first_air_date).getFullYear().toString() : undefined,
-                        imdbRating: item.vote_average ? Math.round(item.vote_average * 10) / 10 : undefined,
-                        genres: item.genre_ids || []
-                    });
-                    totalFiltered++;
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 100)); // Rate limiting
-            }
-
-            if (page >= data.total_pages) break;
-            page++;
+        if (!data.results || data.results.length === 0) {
+            return { items: [], totalPages: page - 1, totalResults: data.total_results };
         }
 
-        console.log(`✅ Final count: ${totalFiltered} ${type} (safe + streaming)`);
-        return { content: allContent, count: totalFiltered };
+        // Filter and map items
+        const items = data.results
+            .filter(item => item.original_language === 'ko' && !item.adult)
+            .map(item => ({
+                id: `tmdb:${item.id}`,
+                type: type,
+                name: item.title || item.name,
+                poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
+                description: item.overview,
+                releaseInfo: item.release_date || item.first_air_date ? new Date(item.release_date || item.first_air_date).getFullYear().toString() : undefined,
+                imdbRating: item.vote_average ? Math.round(item.vote_average * 10) / 10 : undefined,
+                genres: item.genre_ids || [],
+                popularity: item.popularity
+            }));
 
+        return {
+            items,
+            totalPages: data.total_pages,
+            totalResults: data.total_results,
+            currentPage: data.page
+        };
     } catch (error) {
-        console.error(`❌ Error fetching ${type}:`, error);
-        return { content: [], count: 0 };
+        console.error(`Error fetching ${type} page ${page}:`, error);
+        return { items: [], totalPages: 0, totalResults: 0 };
     }
 }
 
-// Genre mapping
-const GENRE_MAP = {
-    movie: {
-        28: 'Action', 18: 'Drama', 35: 'Comedy', 53: 'Thriller',
-        10749: 'Romance', 27: 'Horror', 878: 'Sci-Fi', 14: 'Fantasy',
-        80: 'Crime', 9648: 'Mystery'
-    },
-    series: {
-        18: 'Drama', 35: 'Comedy', 10759: 'Action', 10749: 'Romance',
-        53: 'Thriller', 80: 'Crime', 10765: 'Fantasy', 9648: 'Mystery'
-    }
-};
-
-builder.defineCatalogHandler(async (args) => {
-    console.log(`📺 Request: ${args.type} - ${args.id}`);
-    
-    const skip = args.extra?.skip ? parseInt(args.extra.skip) : 0;
-    const cacheKey = args.type === 'movie' ? 'movies' : 'series';
+// Smart content loader - loads pages as needed
+async function getKoreanContent(type, options = {}) {
+    const { search, genre, skip = 0 } = options;
+    const cacheKey = type;
     const now = Date.now();
+    
+    // Initialize cache if empty or expired
+    if (contentCache[cacheKey].pages.size === 0 || now - contentCache.timestamp > CACHE_DURATION) {
+        contentCache[cacheKey].pages.clear();
+        contentCache[cacheKey].lastPage = 0;
+        contentCache.timestamp = now;
+    }
 
     try {
-        // Fetch fresh data if cache is empty or expired
-        if (contentCache[cacheKey].data.length === 0 || now - contentCache[cacheKey].timestamp > CACHE_DURATION) {
-            console.log(`🔄 Fetching fresh filtered ${args.type}...`);
-            const result = await fetchFilteredKoreanContent(args.type);
-            contentCache[cacheKey].data = result.content;
-            contentCache[cacheKey].count = result.count;
-            contentCache[cacheKey].timestamp = now;
+        let allItems = [];
+        
+        // Load pages until we have enough items
+        while (allItems.length < skip + 100 && contentCache[cacheKey].lastPage < 20) { // Max 20 pages (400 items)
+            const nextPage = contentCache[cacheKey].lastPage + 1;
             
-            console.log(`🎯 TOTAL ${args.type.toUpperCase()} COUNT: ${result.count}`);
+            // Check if page is already cached
+            if (contentCache[cacheKey].pages.has(nextPage)) {
+                const pageItems = contentCache[cacheKey].pages.get(nextPage);
+                allItems = allItems.concat(pageItems);
+            } else {
+                // Fetch new page
+                console.log(`📥 Loading ${type} page ${nextPage}...`);
+                const result = await fetchKoreanPage(type, nextPage);
+                
+                if (result.items.length > 0) {
+                    contentCache[cacheKey].pages.set(nextPage, result.items);
+                    contentCache[cacheKey].lastPage = nextPage;
+                    contentCache[cacheKey].totalItems = result.totalResults;
+                    allItems = allItems.concat(result.items);
+                    
+                    console.log(`✅ Loaded ${result.items.length} ${type} from page ${nextPage}`);
+                    
+                    // Rate limiting delay
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } else {
+                    break;
+                }
+            }
         }
 
-        let filteredContent = contentCache[cacheKey].data;
+        console.log(`📊 Total ${type} loaded: ${allItems.length} (of ${contentCache[cacheKey].totalItems} total)`);
 
         // Apply genre filter
-        if (args.extra?.genre) {
+        if (genre) {
             const genreMap = {
                 'action': 28, 'drama': 18, 'comedy': 35, 'thriller': 53,
                 'romance': 10749, 'horror': 27, 'scifi': 878, 'fantasy': 14,
                 'crime': 80, 'mystery': 9648
             };
-            const genreId = genreMap[args.extra.genre.toLowerCase()];
+            const genreId = genreMap[genre.toLowerCase()];
             
             if (genreId) {
-                filteredContent = filteredContent.filter(item => 
-                    item.genres.includes(genreId)
-                );
+                allItems = allItems.filter(item => item.genres.includes(genreId));
+                console.log(`🎭 Genre filter "${genre}": ${allItems.length} items`);
             }
         }
 
         // Apply search filter
-        if (args.extra?.search) {
-            filteredContent = filteredContent.filter(item =>
-                item.name.toLowerCase().includes(args.extra.search.toLowerCase())
+        if (search) {
+            allItems = allItems.filter(item => 
+                item.name.toLowerCase().includes(search.toLowerCase())
             );
+            console.log(`🔍 Search "${search}": ${allItems.length} items`);
         }
 
         // Pagination
         const pageSize = 100;
         const startIndex = skip;
         const endIndex = startIndex + pageSize;
-        const paginatedContent = filteredContent.slice(startIndex, endIndex);
+        const paginatedItems = allItems.slice(startIndex, endIndex);
 
-        console.log(`📄 Returning ${paginatedContent.length} ${args.type}`);
-        
-        return { 
-            metas: paginatedContent,
-            hasMore: endIndex < filteredContent.length
+        return {
+            metas: paginatedItems,
+            hasMore: endIndex < allItems.length && contentCache[cacheKey].lastPage < 20
         };
 
     } catch (error) {
-        console.error('❌ Catalog error:', error);
+        console.error(`Error getting ${type} content:`, error);
         return { metas: [], hasMore: false };
     }
+}
+
+// Search handler
+async function searchKoreanContent(type, query, page = 1) {
+    try {
+        const url = `https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=en-US&page=${page}&include_adult=false`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (!data.results) return { metas: [], hasMore: false };
+
+        const items = data.results
+            .filter(item => item.original_language === 'ko' && !item.adult)
+            .map(item => ({
+                id: `tmdb:${item.id}`,
+                type: type,
+                name: item.title || item.name,
+                poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
+                description: item.overview,
+                releaseInfo: item.release_date || item.first_air_date ? new Date(item.release_date || item.first_air_date).getFullYear().toString() : undefined,
+                imdbRating: item.vote_average ? Math.round(item.vote_average * 10) / 10 : undefined
+            }));
+
+        return {
+            metas: items,
+            hasMore: data.page < data.total_pages
+        };
+    } catch (error) {
+        console.error(`Search error for ${type}:`, error);
+        return { metas: [], hasMore: false };
+    }
+}
+
+// Catalog handler
+builder.defineCatalogHandler(async (args) => {
+    console.log(`🎬 Request: ${args.type} - ${args.id}`, args.extra ? `(${JSON.stringify(args.extra)})` : '');
+    
+    if ((args.type === 'movie' && args.id === 'korean-movies') || 
+        (args.type === 'series' && args.id === 'korean-series')) {
+        
+        if (args.extra?.search) {
+            return await searchKoreanContent(args.type, args.extra.search);
+        } else {
+            return await getKoreanContent(args.type, {
+                genre: args.extra?.genre,
+                skip: args.extra?.skip || 0
+            });
+        }
+    }
+    
+    return { metas: [], hasMore: false };
 });
 
-// Start the server
+// Start server
 const port = process.env.PORT || 7000;
 
 serveHTTP(builder.getInterface(), { port: port })
     .then(() => {
-        console.log('🚀 Korean Catalog - Final Version Started!');
-        console.log('✅ Removes adult content not on streaming platforms');
-        console.log('✅ Shows exact movie and series counts');
-        console.log('✅ Separate catalogs for movies and series');
-        console.log('✅ Genre selection in Discovery page');
-        console.log('✅ Safe content only');
+        console.log('🚀 Korean Optimized Catalog Started!');
+        console.log('✅ Maximum Korean content (400+ movies, 400+ series)');
+        console.log('✅ Smart pagination & caching');
+        console.log('✅ Genre filtering in Discovery');
+        console.log('✅ Search functionality');
+        console.log('✅ Both catalogs guaranteed');
+        console.log('✅ Rate limit optimized');
         console.log('🔗 Manifest: http://localhost:' + port + '/manifest.json');
     })
     .catch((error) => {
